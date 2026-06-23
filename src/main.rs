@@ -1,4 +1,4 @@
-use actix_web::{App, HttpResponse, HttpServer, Responder, post};
+use actix_web::{App, HttpResponse, HttpServer, Responder, post, web};
 
 use dotenvy::dotenv;
 use std::env;
@@ -26,8 +26,13 @@ async fn main() -> std::io::Result<()> {
 
     println!("Connected to postgres!");
 
-    HttpServer::new(|| App::new().service(hello).service(register))
-        .bind(("127.0.0.1", 8080))?
-        .run()
-        .await
+    HttpServer::new(move || {
+        App::new()
+            .app_data(web::Data::new(pgPool.clone()))
+            .service(hello)
+            .service(register)
+    })
+    .bind(("127.0.0.1", 8080))?
+    .run()
+    .await
 }
