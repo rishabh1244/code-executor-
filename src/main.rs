@@ -7,7 +7,7 @@ mod db;
 mod routes;
 
 use db::connect::connect_db;
-use routes::auth::register;
+use routes::auth::{login, register};
 
 #[post("/hello")]
 async fn hello(req_body: String) -> impl Responder {
@@ -31,6 +31,7 @@ async fn main() -> std::io::Result<()> {
             .app_data(web::Data::new(pgPool.clone()))
             .service(hello)
             .service(register)
+            .service(login)
     })
     .bind(("127.0.0.1", 8080))?
     .run()

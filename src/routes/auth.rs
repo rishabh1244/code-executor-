@@ -26,12 +26,36 @@ struct Claims {
     exp: usize,
 }
 
-#[derive(sqlx::FromRow)]
+#[derive(Clone, sqlx::FromRow)]
 struct User {
     username: String,
     password_hash: String,
 }
 
+#[derive(Serialize)]
+struct AuthReponseSuccess {
+    token: String,
+}
+
+#[derive(Serialize)]
+struct AuthResponseFailure {
+    fail_reason: String,
+}
+fn generate_token(username: &str) -> String {
+    let claims = Claims {
+        username: username.to_string(),
+        exp: 2_000_000_000,
+    };
+
+    let secret = env::var("JWT_SECRET").unwrap();
+
+    encode(
+        &Header::default(),
+        &claims,
+        &EncodingKey::from_secret(secret.as_bytes()),
+    )
+    .unwrap()
+}
 #[post("/api/register")]
 async fn register(pool: web::Data<PgPool>, req_body: web::Json<AuthData>) -> impl Responder {
     let salt = SaltString::generate(&mut OsRng);
@@ -48,13 +72,14 @@ async fn register(pool: web::Data<PgPool>, req_body: web::Json<AuthData>) -> imp
     .bind(&password_hash)
     .execute(pool.get_ref())
     .await;
-
     match result {
-        Ok(_) => HttpResponse::Ok().body("registered"),
-        Err(e) => {
-            println!("DB Error: {}", e);
-            HttpResponse::InternalServerError().finish()
+        Ok(_) => {
+            let token = generate_token(&req_body.username);
+            HttpResponse::Ok().json(AuthReponseSuccess { token })
         }
+        Err(e) => HttpResponse::InternalServerError().json(AuthResponseFailure {
+            fail_reason: e.to_string(),
+        }),
     }
 }
 
@@ -67,27 +92,8 @@ async fn login(pool: web::Data<PgPool>, req_body: web::Json<AuthData>) -> impl R
 
     match user {
         Ok(user) => {
-            let parsed_hash = PasswordHash::new(&user.password_hash).unwrap();
-            if Argon2::default()
-                .verify_password(req_body.password.as_bytes(), &parsed_hash)
-                .is_err()
-            {
-                return HttpResponse::Unauthorized().finish();
-            }
-            let claims = Claims {
-                username: user.username,
-                exp: 2000000000,
-            };
-
-            let secret = env::var("JWT_SECRET").unwrap();
-
-            let token = encode(
-                &Header::default(),
-                &claims,
-                &EncodingKey::from_secret(secret.as_bytes()),
-            )
-            .unwrap();
-            HttpResponse::Ok().body(token)
+            let token = generate_token(&user.username);
+            HttpResponse::Ok().json(AuthReponseSuccess { token })
         }
 
         Err(_) => HttpResponse::Unauthorized().finish(),
