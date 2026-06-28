@@ -82,7 +82,19 @@ async fn register(pool: web::Data<PgPool>, req_body: web::Json<AuthData>) -> imp
         }),
     }
 }
+//eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6InJpc2hhYmgiLCJleHAiOjIwMDAwMDAwMDB9.IfonnzBnE-1zaV3SMDkF5ukRyXj4wdAsKfq0I1NmAFk
 
+/*
+curl -X POST http://localhost:8080/code/upload \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer eyJ0eXAiOiJKV1QiLCJhbGciOiJIUzI1NiJ9.eyJ1c2VybmFtZSI6InJpc2hhYmgiLCJleHAiOjIwMDAwMDAwMDB9.IfonnzBnE-1zaV3SMDkF5ukRyXj4wdAsKfq0I1NmAFk" \
+  -d '{
+    "code_content": "print(\"hello world\")",
+    "language": "python",
+    "username": "rishabh",
+    "file_name":"python1"
+  }'
+*/
 #[post("/api/login")]
 async fn login(pool: web::Data<PgPool>, req_body: web::Json<AuthData>) -> impl Responder {
     let user = sqlx::query_as::<_, User>("SELECT * FROM users WHERE username = $1")

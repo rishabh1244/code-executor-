@@ -36,7 +36,6 @@ pub async fn validator(
         Ok(data) => {
             // stash the claims so handlers can pull them out later
             req.extensions_mut().insert(data.claims);
-            println!("OK ");
             Ok(req)
         }
 
