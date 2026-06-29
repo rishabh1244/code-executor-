@@ -3,7 +3,7 @@
 use crate::docker_worker::runner::init_run;
 use crate::middleware::middleware::Claims;
 use actix_web::{HttpMessage, HttpResponse, Responder, post, web};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::PathBuf;
 
@@ -12,6 +12,11 @@ struct CodeBody {
     code_content: String,
     file_name: String,
     language: String,
+}
+
+#[derive(Serialize)]
+struct CodeResponse {
+    output: String,
 }
 
 fn sanitize_filename(name: &str) -> String {
@@ -62,11 +67,14 @@ pub async fn executeCode(
         Err(e) => eprintln!("canonicalize failed: {e}"),
     }
 
-    let return_repsponse = init_run(
+    let return_response = init_run(
         file_path.to_string_lossy().into_owned(),
         content.language.clone(),
     )
     .await;
 
-    HttpResponse::Ok().json("API HIT")
+    match return_response {
+        Ok(output) => HttpResponse::Ok().json(CodeResponse { output }),
+        Err(e) => HttpResponse::InternalServerError().json(format!("execution error: {}", e)),
+    }
 }
