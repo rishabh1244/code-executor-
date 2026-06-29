@@ -40,7 +40,7 @@ async fn main() -> std::io::Result<()> {
             .service(login)
             .service(web::scope("").wrap(auth).service(executeCode))
     })
-    .bind(("127.0.0.1", 8081))?
+    .bind(("127.0.0.1", 8080))?
     .run()
     .await
 }

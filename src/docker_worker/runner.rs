@@ -1,69 +1,49 @@
 use bollard::Docker;
-use bollard::container::{Config, CreateContainerOptions, LogsOptions, StartContainerOptions};
-use bollard::models::HostConfig;
-use futures_util::stream::TryStreamExt;
-async fn run_code(
-    image: String,
-    file_path: String,
-    command: String,
+use bollard::exec::{CreateExecOptions, StartExecResults};
+use futures_util::StreamExt;
+
+async fn run_in_existing_container(
+    container_name: &str,
+    file_path: &str,
+    command: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let docker = Docker::connect_with_local_defaults()?;
-
-    let config = Config {
-        image: Some(image),
-        cmd: Some(vec![command, file_path]),
-        host_config: Some(HostConfig {
-            binds: Some(vec!["/tmp/user123:/app".to_string()]),
-            auto_remove: Some(true),
-            network_mode: Some("none".to_string()),
-            memory: Some(256 * 1024 * 1024),
-            ..Default::default()
-        }),
-        attach_stdout: Some(true),
-        attach_stderr: Some(true),
-        ..Default::default()
-    };
-
-    // Create container
-    let container = docker
-        .create_container(None::<CreateContainerOptions<String>>, config)
+    println!("docker connected");
+    let exec = docker
+        .create_exec(
+            container_name,
+            CreateExecOptions {
+                attach_stdout: Some(true),
+                attach_stderr: Some(true),
+                cmd: Some(vec![command, file_path]),
+                ..Default::default()
+            },
+        )
         .await?;
 
-    // Start container
-    docker
-        .start_container(&container.id, None::<StartContainerOptions<String>>)
-        .await?;
+    match docker.start_exec(&exec.id, None).await? {
+        StartExecResults::Attached { mut output, .. } => {
+            while let Some(msg) = output.next().await {
+                println!("{:?}", msg?);
+            }
+        }
 
-    // Read logs
-    let mut logs = docker.logs(
-        &container.id,
-        Some(LogsOptions::<String> {
-            stdout: true,
-            stderr: true,
-            follow: true,
-            ..Default::default()
-        }),
-    );
-
-    while let Some(log) = logs.try_next().await? {
-        print!("{:?}", log);
+        StartExecResults::Detached => {
+            println!("Exec started in detached mode");
+        }
     }
 
     Ok(())
 }
-
 pub async fn init_run(
     file_path: String,
     language: String,
 ) -> Result<(), Box<dyn std::error::Error>> {
+    println!("init_run()");
+
     if language == "python" {
         println!("running code");
-        run_code(
-            "python:3.13-slim".to_string(),
-            file_path,
-            "python".to_string(),
-        )
-        .await?
+        run_in_existing_container("python:3.13-slim", &file_path, "python").await?
     }
 
     Ok(())

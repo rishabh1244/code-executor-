@@ -62,10 +62,11 @@ pub async fn executeCode(
         Err(e) => eprintln!("canonicalize failed: {e}"),
     }
 
-    init_run(
+    let return_repsponse = init_run(
         file_path.to_string_lossy().into_owned(),
         content.language.clone(),
-    );
+    )
+    .await;
 
-    HttpResponse::Ok().json("api hit")
+    HttpResponse::Ok().json("API HIT")
 }
