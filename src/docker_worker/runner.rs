@@ -8,7 +8,11 @@ async fn run_in_existing_container(
     command: &str,
 ) -> Result<(), Box<dyn std::error::Error>> {
     let docker = Docker::connect_with_local_defaults()?;
-    println!("docker connected");
+
+    println!("Container: {}", container_name);
+    println!("Command: {}", command);
+    println!("File path: {}", file_path);
+
     let exec = docker
         .create_exec(
             container_name,
@@ -43,7 +47,7 @@ pub async fn init_run(
 
     if language == "python" {
         println!("running code");
-        run_in_existing_container("python:3.13-slim", &file_path, "python").await?
+        run_in_existing_container("python-worker", &file_path, "python").await?
     }
 
     Ok(())
