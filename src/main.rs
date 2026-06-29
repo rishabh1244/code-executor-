@@ -5,6 +5,7 @@ use dotenvy::dotenv;
 use std::env;
 
 mod db;
+mod docker_worker;
 mod middleware;
 mod routes;
 
@@ -39,7 +40,7 @@ async fn main() -> std::io::Result<()> {
             .service(login)
             .service(web::scope("").wrap(auth).service(executeCode))
     })
-    .bind(("127.0.0.1", 8080))?
+    .bind(("127.0.0.1", 8081))?
     .run()
     .await
 }

@@ -1,12 +1,11 @@
 // recieve code to run
 
+use crate::docker_worker::runner::init_run;
 use crate::middleware::middleware::Claims;
 use actix_web::{HttpMessage, HttpResponse, Responder, post, web};
 use serde::Deserialize;
 use std::fs;
 use std::path::PathBuf;
-
-mod docker_worker;
 
 #[derive(Deserialize)]
 struct CodeBody {
@@ -31,8 +30,17 @@ pub async fn executeCode(
         None => return HttpResponse::Unauthorized().json("missing auth"),
     };
 
+    let username = match req.extensions().get::<Claims>() {
+        Some(claims) => claims.username.clone(),
+        None => {
+            return HttpResponse::Unauthorized().finish();
+        }
+    };
+
     let base_dir = std::env::var("STORAGE_DIR").unwrap_or_else(|_| "./store".to_string());
-    let user_dir = PathBuf::from(base_dir).join(&claims.username);
+
+    let user_dir = PathBuf::from(base_dir).join(username);
+
     let safe_name = sanitize_filename(&content.file_name);
     if safe_name.is_empty() {
         return HttpResponse::BadRequest().json("invalid filename");
@@ -53,6 +61,11 @@ pub async fn executeCode(
         Ok(abs_path) => println!("absolute path: {:?}", abs_path),
         Err(e) => eprintln!("canonicalize failed: {e}"),
     }
+
+    init_run(
+        file_path.to_string_lossy().into_owned(),
+        content.language.clone(),
+    );
 
     HttpResponse::Ok().json("api hit")
 }
