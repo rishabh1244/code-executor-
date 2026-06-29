@@ -1,6 +1,4 @@
-use std::fmt::write;
-
-use actix_web::{App, HttpResponse, HttpServer, Responder, post, web};
+use actix_web::{HttpResponse, Responder, post, web};
 use sqlx::PgPool;
 
 use argon2::{
@@ -8,11 +6,11 @@ use argon2::{
     password_hash::{PasswordHash, PasswordHasher, PasswordVerifier, SaltString, rand_core::OsRng},
 };
 
-use dotenvy::dotenv;
 use std::env;
 
-use jsonwebtoken::{Algorithm, EncodingKey, Header, encode};
+use jsonwebtoken::{EncodingKey, Header, encode};
 use serde::{Deserialize, Serialize};
+use chrono;
 
 #[derive(Deserialize)]
 struct AuthData {
@@ -44,7 +42,7 @@ struct AuthResponseFailure {
 fn generate_token(username: &str) -> String {
     let claims = Claims {
         username: username.to_string(),
-        exp: 2_000_000_000,
+        exp: (chrono::Utc::now() + chrono::Duration::hours(24)).timestamp() as usize,
     };
 
     let secret = env::var("JWT_SECRET").unwrap();
@@ -104,10 +102,30 @@ async fn login(pool: web::Data<PgPool>, req_body: web::Json<AuthData>) -> impl R
 
     match user {
         Ok(user) => {
-            let token = generate_token(&user.username);
-            HttpResponse::Ok().json(AuthReponseSuccess { token })
+            let parsed_hash = match PasswordHash::new(&user.password_hash) {
+                Ok(h) => h,
+                Err(_) => {
+                    return HttpResponse::InternalServerError().json(AuthResponseFailure {
+                        fail_reason: "invalid password hash".to_string(),
+                    })
+                }
+            };
+
+            if Argon2::default()
+                .verify_password(req_body.password.as_bytes(), &parsed_hash)
+                .is_ok()
+            {
+                let token = generate_token(&user.username);
+                HttpResponse::Ok().json(AuthReponseSuccess { token })
+            } else {
+                HttpResponse::Unauthorized().json(AuthResponseFailure {
+                    fail_reason: "invalid credentials".to_string(),
+                })
+            }
         }
 
-        Err(_) => HttpResponse::Unauthorized().finish(),
+        Err(_) => HttpResponse::Unauthorized().json(AuthResponseFailure {
+            fail_reason: "invalid credentials".to_string(),
+        }),
     }
 }
